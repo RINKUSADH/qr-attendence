@@ -81,4 +81,95 @@ async function stop(){
   $('msg').className='';
 }
 
-async function scan(text){let n=Date.now();if(text===last&&n-lastAt<1800)return;last=text;lastAt=n;let roll=text.trim().split('|')[0];try{let d=await cb({action:'scan',ta:$('ta').value,session:$('session').value,roll:roll});if(!d.ok){$('name').textContent='INVALID QR';$('detail').textContent=d.error;return}if(!d.duplicate)present[d.roll.toUpperCase()]=true;$('name').textContent=d.name;$('detail').textContent=d.roll+' • '+d.time+' • '+(d.duplicate?'Already present':'✓ Present');stats()}catch(e){$('msg').textContent=e.message}}async function fin(){if(!confirm('Finalize today? Unscanned students will be A.'))return;try{let d=await cb({action:'finalize',ta:$('ta').value,session:$('session').value});alert('Finalized\nPresent: '+d.present+'\nAbsent: '+d.absent)}catch(e){alert(e.message)}}$('ta').onchange=state;$('session').onchange=state;setInterval(()=>{$('time').textContent=new Date().toLocaleTimeString()},1000);init();</script></body></html>
+async function scan(text){
+  const now=Date.now();
+  if(text===last && now-lastAt<1800)return;
+  last=text;
+  lastAt=now;
+
+  let roll=text.trim().split('|')[0].trim();
+  if(!roll)return;
+
+  const key=roll.toUpperCase();
+
+  // Validate locally first — no network round trip required.
+  const student=students.find(
+    s=>s.roll.toUpperCase()===key
+  );
+
+  if(!student){
+    $('name').textContent='INVALID QR';
+    $('detail').textContent='Student is not in the Name List.';
+    $('msg').textContent='Invalid QR.';
+    $('msg').className='err';
+    return;
+  }
+
+  const duplicate=!!present[key];
+
+  // Update the phone UI IMMEDIATELY.
+  // This removes the network delay between students.
+  if(!duplicate){
+    present[key]=true;
+  }
+
+  $('name').textContent=student.name;
+  $('detail').textContent=
+    student.roll+' • '+new Date().toLocaleTimeString()+
+    ' • '+(duplicate?'Already present':'✓ Present');
+
+  stats();
+
+  $('msg').textContent=
+    duplicate
+      ? 'Duplicate scan — attendance unchanged.'
+      : '✓ Present — next student can scan.';
+  $('msg').className=duplicate?'':'ok';
+
+  /*
+   * Send the raw scan to Google Sheets in the background.
+   * We do NOT wait for this request.
+   *
+   * FINALIZE will guarantee that every locally confirmed
+   * present student is written to Attendance Log before
+   * Subject Roll List is updated.
+   */
+  cb({
+    action:'scan',
+    ta:$('ta').value,
+    session:$('session').value,
+    roll:student.roll
+  }).catch(e=>{
+    // Do not interrupt scanning because the finalization
+    // endpoint will repair missing raw log records.
+    console.warn('Background scan log:',e);
+  });
+}
+
+async function fin(){
+  const rolls=Object.keys(present);
+  if(!rolls.length){
+    alert('No students are marked present on this phone yet.');
+    return;
+  }
+  if(!confirm('Finalize today? All other students will be marked A.'))return;
+  try{
+    $('msg').textContent='Finalizing attendance…';
+    const d=await cb({
+      action:'finalize',
+      ta:$('ta').value,
+      session:$('session').value,
+      present:rolls.join(',')
+    });
+    if(!d.ok)throw Error(d.error||'Finalize failed');
+    alert('Finalized
+Present: '+d.present+'
+Absent: '+d.absent+'
+Total: '+d.total);
+    $('msg').textContent='✓ Attendance updated in Subject Roll List.';
+    $('msg').className='ok';
+  }catch(e){
+    $('msg').textContent=e.message;
+    $('msg').className='err';
+  }
+});alert('Finalized\nPresent: '+d.present+'\nAbsent: '+d.absent)}catch(e){alert(e.message)}}$('ta').onchange=state;$('session').onchange=state;setInterval(()=>{$('time').textContent=new Date().toLocaleTimeString()},1000);init();</script></body></html>
