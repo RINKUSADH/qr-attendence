@@ -1,116 +1,84 @@
-<!doctype html>
-<html>
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Attendance</title><script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script><style>body{margin:0;background:#07111f;color:white;font-family:Arial}.app{max-width:600px;margin:auto;padding:15px}.card{background:#0e1b2f;padding:15px;border-radius:16px;margin:10px 0}input,select,button{width:100%;padding:13px;margin:5px 0;border-radius:10px;font-size:16px;box-sizing:border-box}input,select{background:#091525;color:white;border:1px solid #345}button{border:0;font-weight:bold;background:#38bdf8}#reader{background:#000;border-radius:12px;overflow:hidden}.stats{display:flex;gap:8px}.stat{flex:1;text-align:center;background:#14243e;padding:10px;border-radius:10px}.ok{color:#22c55e}.warn{color:#f59e0b}.err{color:#ef4444}</style></head><body><div class="app"><h1>QR Attendance</h1><div class="card"><input id="ta" placeholder="TA name"><select id="session"><option>Lec</option><option>Lab</option></select><p>Date: <b id="date">—</b> &nbsp; Time: <b id="time">—</b></p></div><div class="card"><div id="reader"></div><button id="start" onclick="start()">📷 START CAMERA</button><button id="stop" onclick="stop()" style="display:none;background:#334155;color:white">STOP</button><p id="msg">Tap Start Camera. Your phone should ask for camera permission.</p></div><div class="card"><div class="stats"><div class="stat"><b id="total">0</b><small>TOTAL</small></div><div class="stat"><b id="present" class="ok">0</b><small>PRESENT</small></div><div class="stat"><b id="remaining" class="warn">0</b><small>REMAINING</small></div></div></div><div class="card"><h2 id="name">No scan yet</h2><p id="detail">Scan a student QR.</p></div><div class="card"><button onclick="fin()" style="background:#22c55e">FINALIZE SESSION</button></div></div><script>const BACKEND_URL='https://script.google.com/a/macros/iitj.ac.in/s/AKfycby8gGuG5Ik4wtOfpeYi6iMNU-y5BV2fEuxJr-k55ltK80YyaC8etdGKXV8jGMqg-7iq/exec';let scanner=null,running=false,students=[],present={},last='',lastAt=0;const $=x=>document.getElementById(x);function cb(p){return new Promise((res,rej)=>{let n='cb'+Date.now()+Math.random().toString(36).slice(2),s=document.createElement('script'),t=setTimeout(()=>{delete window[n];s.remove();rej(Error('Backend timeout'))},15000);window[n]=x=>{clearTimeout(t);delete window[n];s.remove();res(x)};s.onerror=()=>{clearTimeout(t);delete window[n];s.remove();rej(Error('Backend unavailable'))};s.src=BACKEND_URL+'?'+new URLSearchParams({...p,callback:n});document.body.appendChild(s)})}async function init(){if(BACKEND_URL.includes('PASTE_')){$('msg').textContent='Set BACKEND_URL in index.html';return}try{let d=await cb({action:'init'});students=d.students||[];$('date').textContent=d.displayDate;$('time').textContent=d.time;$('total').textContent=students.length;state()}catch(e){$('msg').textContent=e.message}}function state(){cb({action:'state',ta:$('ta').value,session:$('session').value}).then(d=>{present=d.present||{};stats()})}function stats(){let p=Object.keys(present).length;$('present').textContent=p;$('remaining').textContent=Math.max(0,students.length-p)}async function start(){
+  const ta = $('ta').value.trim();
+  if(!ta){
+    alert('Please enter TA name first.');
+    $('ta').focus();
+    return;
+  }
+  if(running) return;
 
-<head>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>QR Attendance</title>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <style>
-        body {
-            margin: 0;
-            background: #07111f;
-            color: white;
-            font-family: Arial
-        }
+  try{
+    // IMPORTANT: Let html5-qrcode open the camera directly.
+    // This allows the phone browser to show its native camera permission prompt.
+    scanner = new Html5Qrcode('reader');
 
-        .app {
-            max-width: 600px;
-            margin: auto;
-            padding: 15px
-        }
+    await scanner.start(
+      {facingMode:'environment'},
+      {
+        fps:10,
+        qrbox:function(viewfinderWidth, viewfinderHeight){
+          const size=Math.min(
+            Math.floor(viewfinderWidth*0.72),
+            Math.floor(viewfinderHeight*0.72),
+            300
+          );
+          return {width:size,height:size};
+        },
+        aspectRatio:1.0
+      },
+      scan,
+      function(errorMessage){
+        // Normal QR decode failures are ignored while searching.
+      }
+    );
 
-        .card {
-            background: #0e1b2f;
-            padding: 15px;
-            border-radius: 16px;
-            margin: 10px 0
-        }
+    running=true;
+    $('start').style.display='none';
+    $('stop').style.display='block';
+    $('msg').textContent='Camera active. Scan QR codes.';
+    $('msg').className='ok';
 
-        input,
-        select,
-        button {
-            width: 100%;
-            padding: 13px;
-            margin: 5px 0;
-            border-radius: 10px;
-            font-size: 16px;
-            box-sizing: border-box
-        }
+  }catch(e){
+    console.error('Camera start error:',e);
 
-        input,
-        select {
-            background: #091525;
-            color: white;
-            border: 1px solid #345
-        }
+    if(scanner){
+      try{await scanner.clear();}catch(ignore){}
+      scanner=null;
+    }
 
-        button {
-            border: 0;
-            font-weight: bold;
-            background: #38bdf8
-        }
+    const text=String(e && (e.message||e.name||e) || '');
+    let message='Camera could not start.';
 
-        #reader {
-            background: #000;
-            border-radius: 12px;
-            overflow: hidden
-        }
+    if(/NotAllowedError|PermissionDeniedError|permission/i.test(text)){
+      message='Camera permission was denied or blocked. Tap START CAMERA again and choose Allow.';
+    }else if(/NotFoundError|DevicesNotFoundError/i.test(text)){
+      message='No camera was found on this phone.';
+    }else if(/NotReadableError|TrackStartError/i.test(text)){
+      message='The camera is busy or unavailable. Close other apps using the camera and try again.';
+    }else if(/NotSupportedError|secure context|HTTPS/i.test(text)){
+      message='Camera requires a secure HTTPS website. Open the HTTPS GitHub Pages link.';
+    }else if(text){
+      message='Camera error: '+text;
+    }
 
-        .stats {
-            display: flex;
-            gap: 8px
-        }
+    $('name').textContent='CAMERA COULD NOT START';
+    $('detail').textContent=message;
+    $('msg').textContent=message;
+    $('msg').className='err';
+  }
+}
 
-        .stat {
-            flex: 1;
-            text-align: center;
-            background: #14243e;
-            padding: 10px;
-            border-radius: 10px
-        }
+async function stop(){
+  if(scanner){
+    try{await scanner.stop();}catch(ignore){}
+    try{scanner.clear();}catch(ignore){}
+    scanner=null;
+  }
+  running=false;
+  $('start').style.display='block';
+  $('stop').style.display='none';
+  $('msg').textContent='Camera stopped.';
+  $('msg').className='';
+}
 
-        .ok {
-            color: #22c55e
-        }
-
-        .warn {
-            color: #f59e0b
-        }
-
-        .err {
-            color: #ef4444
-        }
-    </style>
-</head>
-
-<body>
-    <div class="app">
-        <h1>QR Attendance</h1>
-        <div class="card"><input id="ta" placeholder="TA name"><select id="session">
-                <option>Lec</option>
-                <option>Lab</option>
-            </select>
-            <p>Date: <b id="date">—</b> &nbsp; Time: <b id="time">—</b></p>
-        </div>
-        <div class="card">
-            <div id="reader"></div><button id="start" onclick="start()">📷 START CAMERA</button><button id="stop"
-                onclick="stop()" style="display:none;background:#334155;color:white">STOP</button>
-            <p id="msg">Tap Start Camera. Your phone should ask for camera permission.</p>
-        </div>
-        <div class="card">
-            <div class="stats">
-                <div class="stat"><b id="total">0</b><small>TOTAL</small></div>
-                <div class="stat"><b id="present" class="ok">0</b><small>PRESENT</small></div>
-                <div class="stat"><b id="remaining" class="warn">0</b><small>REMAINING</small></div>
-            </div>
-        </div>
-        <div class="card">
-            <h2 id="name">No scan yet</h2>
-            <p id="detail">Scan a student QR.</p>
-        </div>
-        <div class="card"><button onclick="fin()" style="background:#22c55e">FINALIZE SESSION</button></div>
-    </div>
-    <script>const BACKEND_URL = 'https://script.google.com/a/macros/iitj.ac.in/s/AKfycby8gGuG5Ik4wtOfpeYi6iMNU-y5BV2fEuxJr-k55ltK80YyaC8etdGKXV8jGMqg-7iq/exec'; let scanner = null, running = false, students = [], present = {}, last = '', lastAt = 0; const $ = x => document.getElementById(x); function cb(p) { return new Promise((res, rej) => { let n = 'cb' + Date.now() + Math.random().toString(36).slice(2), s = document.createElement('script'), t = setTimeout(() => { delete window[n]; s.remove(); rej(Error('Backend timeout')) }, 15000); window[n] = x => { clearTimeout(t); delete window[n]; s.remove(); res(x) }; s.onerror = () => { clearTimeout(t); delete window[n]; s.remove(); rej(Error('Backend unavailable')) }; s.src = BACKEND_URL + '?' + new URLSearchParams({ ...p, callback: n }); document.body.appendChild(s) }) } async function init() { if (BACKEND_URL.includes('PASTE_')) { $('msg').textContent = 'Set BACKEND_URL in index.html'; return } try { let d = await cb({ action: 'init' }); students = d.students || []; $('date').textContent = d.displayDate; $('time').textContent = d.time; $('total').textContent = students.length; state() } catch (e) { $('msg').textContent = e.message } } function state() { cb({ action: 'state', ta: $('ta').value, session: $('session').value }).then(d => { present = d.present || {}; stats() }) } function stats() { let p = Object.keys(present).length; $('present').textContent = p; $('remaining').textContent = Math.max(0, students.length - p) } async function start() { if (!$('ta').value.trim()) { alert('Enter TA name'); return } try { if (!navigator.mediaDevices?.getUserMedia) throw Error('Camera requires HTTPS'); let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); stream.getTracks().forEach(t => t.stop()); scanner = new Html5Qrcode('reader'); await scanner.start({ facingMode: { ideal: 'environment' } }, { fps: 10, qrbox: { width: 240, height: 240 } }, scan, () => { }); running = true; $('start').style.display = 'none'; $('stop').style.display = 'block'; $('msg').textContent = 'Camera active. Scan QR codes.' } catch (e) { $('msg').textContent = 'Camera permission was not granted. Tap Start again and choose Allow.'; $('msg').className = 'err' } } async function stop() { if (scanner) { try { await scanner.stop(); scanner.clear() } catch (e) { } scanner = null } running = false; $('start').style.display = 'block'; $('stop').style.display = 'none' } async function scan(text) { let n = Date.now(); if (text === last && n - lastAt < 1800) return; last = text; lastAt = n; let roll = text.trim().split('|')[0]; try { let d = await cb({ action: 'scan', ta: $('ta').value, session: $('session').value, roll: roll }); if (!d.ok) { $('name').textContent = 'INVALID QR'; $('detail').textContent = d.error; return } if (!d.duplicate) present[d.roll.toUpperCase()] = true; $('name').textContent = d.name; $('detail').textContent = d.roll + ' • ' + d.time + ' • ' + (d.duplicate ? 'Already present' : '✓ Present'); stats() } catch (e) { $('msg').textContent = e.message } } async function fin() { if (!confirm('Finalize today? Unscanned students will be A.')) return; try { let d = await cb({ action: 'finalize', ta: $('ta').value, session: $('session').value }); alert('Finalized\nPresent: ' + d.present + '\nAbsent: ' + d.absent) } catch (e) { alert(e.message) } } $('ta').onchange = state; $('session').onchange = state; setInterval(() => { $('time').textContent = new Date().toLocaleTimeString() }, 1000); init();</script>
-</body>
-
-</html>
+async function scan(text){let n=Date.now();if(text===last&&n-lastAt<1800)return;last=text;lastAt=n;let roll=text.trim().split('|')[0];try{let d=await cb({action:'scan',ta:$('ta').value,session:$('session').value,roll:roll});if(!d.ok){$('name').textContent='INVALID QR';$('detail').textContent=d.error;return}if(!d.duplicate)present[d.roll.toUpperCase()]=true;$('name').textContent=d.name;$('detail').textContent=d.roll+' • '+d.time+' • '+(d.duplicate?'Already present':'✓ Present');stats()}catch(e){$('msg').textContent=e.message}}async function fin(){if(!confirm('Finalize today? Unscanned students will be A.'))return;try{let d=await cb({action:'finalize',ta:$('ta').value,session:$('session').value});alert('Finalized\nPresent: '+d.present+'\nAbsent: '+d.absent)}catch(e){alert(e.message)}}$('ta').onchange=state;$('session').onchange=state;setInterval(()=>{$('time').textContent=new Date().toLocaleTimeString()},1000);init();</script></body></html>
