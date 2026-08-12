@@ -12511,14 +12511,39 @@ const ROSTER = [{"no": 1, "roll": "B23EE1041", "name": "Maulik Dave", "code": "O
 const LOG_KEY = 'de_attendance_log';
 const SCRIPT_URL_KEY = 'de_attendance_script_url';
 
+const safeStorage = {
+  async get(key) {
+    if (typeof window.storage !== 'undefined' && window.storage.get) {
+      try {
+        const r = await window.storage.get(key, true);
+        return r ? r.value : null;
+      } catch (e) {
+        console.warn('window.storage.get failed, falling back to localStorage:', e);
+      }
+    }
+    return localStorage.getItem(key);
+  },
+  async set(key, value) {
+    if (typeof window.storage !== 'undefined' && window.storage.set) {
+      try {
+        await window.storage.set(key, value, true);
+        return;
+      } catch (e) {
+        console.warn('window.storage.set failed, falling back to localStorage:', e);
+      }
+    }
+    localStorage.setItem(key, value);
+  }
+};
+
 async function loadLog(){
   try{
-    const r = await window.storage.get(LOG_KEY, true);
-    return r ? JSON.parse(r.value) : [];
+    const val = await safeStorage.get(LOG_KEY);
+    return val ? JSON.parse(val) : [];
   }catch(e){ return []; }
 }
 async function saveLog(log){
-  try{ await window.storage.set(LOG_KEY, JSON.stringify(log), true); }
+  try{ await safeStorage.set(LOG_KEY, JSON.stringify(log)); }
   catch(e){ console.error('storage save failed', e); }
 }
 // re-fetch the shared log, append a new entry, save — reduces (not fully
@@ -12540,12 +12565,12 @@ const HARDCODED_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw14Hw2k0N
 
 async function loadScriptUrl(){
   try{
-    const r = await window.storage.get(SCRIPT_URL_KEY, true);
-    return (r && r.value) ? r.value : HARDCODED_SCRIPT_URL;
+    const val = await safeStorage.get(SCRIPT_URL_KEY);
+    return val ? val : HARDCODED_SCRIPT_URL;
   }catch(e){ return HARDCODED_SCRIPT_URL; }
 }
 async function saveScriptUrl(url){
-  try{ await window.storage.set(SCRIPT_URL_KEY, url, true); }
+  try{ await safeStorage.set(SCRIPT_URL_KEY, url); }
   catch(e){ console.error('storage save failed', e); }
 }
 
@@ -12698,17 +12723,35 @@ function stopCamera(){
     videoStream = null;
   }
 }
+let lastScanTime = 0;
 function tick(){
+  const now = Date.now();
   if(video.readyState === video.HAVE_ENOUGH_DATA){
-    canvasEl.width = video.videoWidth;
-    canvasEl.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvasEl.width, canvasEl.height);
-    const imageData = ctx.getImageData(0,0,canvasEl.width, canvasEl.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-    if(code && code.data){
-      const dbg = document.getElementById('debug-line');
-      if(dbg) dbg.textContent = 'Raw decoded text: "' + code.data + '"';
-      handleDecoded(code.data);
+    // Throttle QR decoding to once every 200ms to save CPU and prevent interface lag
+    if(now - lastScanTime >= 200) {
+      lastScanTime = now;
+      let width = video.videoWidth;
+      let height = video.videoHeight;
+      const maxDim = 480; // downscale high-resolution frames to 480px max dimension
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      canvasEl.width = width;
+      canvasEl.height = height;
+      ctx.drawImage(video, 0, 0, width, height);
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if(code && code.data){
+        const dbg = document.getElementById('debug-line');
+        if(dbg) dbg.textContent = 'Raw decoded text: "' + code.data + '"';
+        handleDecoded(code.data);
+      }
     }
   }
   scanRAF = requestAnimationFrame(tick);
