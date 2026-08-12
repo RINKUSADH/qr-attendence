@@ -1,400 +1,537 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>QR Attendance — IITJ v3</title>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DE Attendance System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-body{margin:0;background:#07111f;color:#fff;font-family:Arial,sans-serif}
-.app{max-width:600px;margin:auto;padding:15px}
-h1{font-size:25px;margin:5px 0 14px}
-.card{background:#0e1b2f;padding:14px;border-radius:16px;margin:10px 0}
-input,select,button{width:100%;padding:13px;margin:5px 0;border-radius:10px;font-size:16px;box-sizing:border-box}
-input,select{background:#091525;color:#fff;border:1px solid #345}
-button{border:0;font-weight:bold;background:#38bdf8;color:#062033}
-#reader{background:#000;border-radius:12px;overflow:hidden;min-height:0}
-#stop{background:#334155;color:#fff}
-#finalize{background:#22c55e;color:#03180b}
-.stats{display:flex;gap:8px}
-.stat{flex:1;text-align:center;background:#14243e;padding:10px;border-radius:10px}
-.stat b{display:block;font-size:21px}
-.stat small{font-size:10px;color:#94a3b8}
-.ok{color:#22c55e}.warn{color:#f59e0b}.err{color:#ef4444}
-#msg{font-size:12px;line-height:1.4}
-.note{font-size:11px;color:#94a3b8;line-height:1.45}
+  :root{
+    --navy:#1a2f4b; --blue:#2f6fed; --blue-light:#eaf1ff; --green:#1a9e5c;
+    --red:#d64545; --gray:#5a6472; --border:#e2e6ed; --bg:#f6f8fb;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:Arial,Helvetica,sans-serif; background:var(--bg); color:#1c2430;
+  }
+  header{
+    background:var(--navy); color:#fff; padding:18px 24px; display:flex; align-items:center; justify-content:space-between;
+  }
+  header h1{font-size:19px; margin:0; font-weight:600; letter-spacing:.2px;}
+  header .sub{font-size:12px; color:#b9c4d6; margin-top:2px;}
+  nav{
+    display:flex; background:#fff; border-bottom:1px solid var(--border); overflow-x:auto;
+  }
+  nav button{
+    flex:1; min-width:110px; padding:14px 10px; background:none; border:none; font-family:inherit;
+    font-size:13.5px; font-weight:600; color:var(--gray); cursor:pointer; border-bottom:3px solid transparent;
+  }
+  nav button.active{color:var(--blue); border-bottom:3px solid var(--blue);}
+  main{max-width:1000px; margin:0 auto; padding:20px 16px 60px;}
+  .card{
+    background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:16px;
+  }
+  .card h2{margin:0 0 6px; font-size:16px; color:var(--navy);}
+  .card p.desc{margin:0 0 14px; font-size:13px; color:var(--gray); line-height:1.5;}
+  button.primary{
+    background:var(--blue); color:#fff; border:none; padding:11px 18px; border-radius:7px;
+    font-size:14px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  button.primary:disabled{background:#a9bce0; cursor:not-allowed;}
+  button.secondary{
+    background:#fff; color:var(--blue); border:1.5px solid var(--blue); padding:10px 16px; border-radius:7px;
+    font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  button.danger{
+    background:#fff; color:var(--red); border:1.5px solid var(--red); padding:10px 16px; border-radius:7px;
+    font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  input[type=text], select{
+    width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:7px; font-size:14px;
+    font-family:inherit; background:#fff;
+  }
+  label{font-size:12.5px; font-weight:600; color:var(--navy); display:block; margin-bottom:5px;}
+  .row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;}
+  .row > div{flex:1; min-width:180px;}
+  .badge{
+    display:inline-block; padding:3px 10px; border-radius:20px; font-size:11.5px; font-weight:700;
+  }
+  .badge.p{background:#e4f7ec; color:var(--green);}
+  .badge.a{background:#fdeaea; color:var(--red);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th, td{padding:9px 10px; text-align:left; border-bottom:1px solid var(--border);}
+  th{background:var(--blue-light); color:var(--navy); font-size:11.5px; text-transform:uppercase; letter-spacing:.3px;}
+  tr:hover td{background:#fafcff;}
+  #qr-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px;}
+  .qr-card{
+    border:1px solid var(--border); border-radius:8px; padding:10px; text-align:center; background:#fff;
+  }
+  .qr-card .qimg{display:flex; justify-content:center; margin-bottom:6px;}
+  .qr-card .roll{font-weight:700; font-size:12.5px; color:var(--navy);}
+  .qr-card .name{font-size:11px; color:var(--gray); margin-top:2px; line-height:1.3;}
+  #scanner-wrap{position:relative; max-width:420px; margin:0 auto; border-radius:10px; overflow:hidden; background:#000;}
+  #scanner-wrap video{width:100%; display:block;}
+  #scan-frame{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:65%; aspect-ratio:1; border:3px solid rgba(255,255,255,.85); border-radius:12px; pointer-events:none;
+    box-shadow:0 0 0 2000px rgba(0,0,0,.35);
+  }
+  #scan-status{
+    text-align:center; padding:10px; font-size:13px; font-weight:600; color:var(--gray); min-height:20px;
+  }
+  #last-scan{
+    max-width:420px; margin:10px auto 0; padding:12px 16px; border-radius:8px; background:var(--blue-light);
+    display:none; align-items:center; justify-content:space-between; gap:10px;
+  }
+  #last-scan.show{display:flex;}
+  #last-scan.dup{background:#fff4e0;}
+  .pill{
+    display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border);
+    border-radius:8px; padding:10px 14px; font-size:13.5px;
+  }
+  .stat{
+    display:flex; gap:14px; flex-wrap:wrap; margin-bottom:14px;
+  }
+  .stat .box{
+    flex:1; min-width:110px; background:#fff; border:1px solid var(--border); border-radius:8px;
+    padding:12px 14px;
+  }
+  .stat .box .num{font-size:22px; font-weight:700; color:var(--navy);}
+  .stat .box .lbl{font-size:11.5px; color:var(--gray); margin-top:2px;}
+  .searchbar{margin-bottom:12px;}
+  .empty{text-align:center; color:var(--gray); padding:30px 10px; font-size:13.5px;}
+  .top-actions{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  #ta-gate{
+    max-width:420px; margin:40px auto; text-align:center;
+  }
+  #ta-gate h2{margin-bottom:6px;}
+  .ta-active-banner{
+    background:var(--blue-light); border:1px solid #c7dbff; border-radius:8px; padding:10px 14px;
+    font-size:13px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; color:var(--navy);
+  }
+  .ta-active-banner strong{color:var(--blue);}
+  @media print{
+    header, nav, .top-actions, .no-print{display:none !important;}
+    body{background:#fff;}
+    main{max-width:100%; padding:0;}
+    .card{border:none; padding:0;}
+    #qr-grid{grid-template-columns:repeat(4,1fr);}
+    .qr-card{break-inside:avoid;}
+  }
 </style>
 </head>
 <body>
-<div class="app">
-<h1>QR Attendance</h1>
 
-<div class="card">
-  <input id="ta" placeholder="TA name" list="taList" autocomplete="off">
-  <datalist id="taList">
-    <option value="Rinku Sadh"></option>
-  </datalist>
-  <select id="session">
-    <option>Lec</option>
-    <option>Lab</option>
-  </select>
-  <p>Date: <b id="date">—</b> &nbsp; Time: <b id="time">—</b></p>
-</div>
-
-<div class="card">
-  <div id="reader"></div>
-  <button id="start" onclick="startCamera()">📷 START CAMERA</button>
-  <button id="stop" onclick="stopCamera()" style="display:none">STOP CAMERA</button>
-  <p id="msg">Connecting to attendance backend…</p>
-  <div class="note">The camera is independent of Google Sheets. Attendance is synced to the sheet in the background.</div>
-</div>
-
-<div class="card">
-  <div class="stats">
-    <div class="stat"><b id="total">0</b><small>TOTAL</small></div>
-    <div class="stat"><b id="present" class="ok">0</b><small>PRESENT</small></div>
-    <div class="stat"><b id="remaining" class="warn">0</b><small>REMAINING</small></div>
+<header>
+  <div>
+    <h1>DE Attendance System</h1>
+    <div class="sub">QR-based roll-call &middot; Subject Roll List</div>
   </div>
-</div>
+  <div class="sub" id="header-count"></div>
+</header>
 
-<div class="card">
-  <h2 id="name">No scan yet</h2>
-  <p id="detail">Scan a student QR.</p>
-</div>
+<nav>
+  <button class="tab-btn active" data-tab="scan">Scan Attendance</button>
+  <button class="tab-btn" data-tab="qr">Generate QR Codes</button>
+  <button class="tab-btn" data-tab="records">Records</button>
+  <button class="tab-btn" data-tab="students">Student List</button>
+</nav>
 
-<div class="card">
-  <button id="finalize" onclick="finalizeSession()">FINALIZE SESSION</button>
-</div>
-</div>
+<main>
+
+<!-- SCAN TAB -->
+<section id="tab-scan">
+  <div id="ta-gate" class="card">
+    <h2>Start Attendance Session</h2>
+    <p class="desc">Enter the TA's name before scanning begins. Every attendance record in this session will be tagged with this name, plus the exact date and time of each scan.</p>
+    <div style="text-align:left; margin-bottom:14px;">
+      <label for="ta-name-input">TA Name</label>
+      <input type="text" id="ta-name-input" placeholder="e.g. Rohan Kumar Duddeda">
+    </div>
+    <div style="text-align:left; margin-bottom:14px;">
+      <label for="lecture-label-input">Lecture / Session Label (optional)</label>
+      <input type="text" id="lecture-label-input" placeholder="e.g. Lec 8, Lab 3 — auto-fills with today's date otherwise">
+    </div>
+    <button class="primary" id="start-session-btn" style="width:100%;">Start Scanning &rarr;</button>
+  </div>
+
+  <div id="scan-active" style="display:none;">
+    <div class="ta-active-banner">
+      <span>TA on duty: <strong id="active-ta-name"></strong> &nbsp;|&nbsp; Session: <strong id="active-session-label"></strong></span>
+      <button class="secondary" id="end-session-btn" style="padding:6px 12px; font-size:12px;">End Session</button>
+    </div>
+
+    <div class="card">
+      <div id="scanner-wrap">
+        <video id="video" playsinline muted></video>
+        <div id="scan-frame"></div>
+      </div>
+      <div id="scan-status">Point the camera at a student's QR code</div>
+      <div id="last-scan">
+        <div class="pill" id="last-scan-info"></div>
+      </div>
+    </div>
+
+    <div class="stat">
+      <div class="box"><div class="num" id="stat-present">0</div><div class="lbl">Marked Present</div></div>
+      <div class="box"><div class="num" id="stat-absent">0</div><div class="lbl">Not Yet Scanned</div></div>
+      <div class="box"><div class="num" id="stat-total">0</div><div class="lbl">Total Students</div></div>
+    </div>
+
+    <div class="card">
+      <h2>This Session's Scans</h2>
+      <table>
+        <thead><tr><th>#</th><th>Roll No</th><th>Name</th><th>Time</th></tr></thead>
+        <tbody id="session-scan-body"><tr><td colspan="4" class="empty">No scans yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- QR TAB -->
+<section id="tab-qr" style="display:none;">
+  <div class="card">
+    <h2>Printable QR Codes</h2>
+    <p class="desc">One QR code per student, encoding their roll number and name. Print this page (each code fits a name badge / sticker) and hand them out once — students reuse the same code for every session.</p>
+    <div class="top-actions">
+      <button class="primary" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+  </div>
+  <div class="card">
+    <div id="qr-grid"></div>
+  </div>
+</section>
+
+<!-- RECORDS TAB -->
+<section id="tab-records" style="display:none;">
+  <div class="card">
+    <h2>Attendance Log</h2>
+    <p class="desc">Every scan ever recorded, across all sessions and TAs. This is the raw log — export it to update your master Subject Roll List spreadsheet.</p>
+    <div class="top-actions">
+      <button class="primary" id="export-btn">Export to Excel (.xlsx)</button>
+      <button class="danger" id="clear-log-btn">Clear All Records</button>
+    </div>
+    <div class="row searchbar">
+      <div>
+        <label>Filter by date</label>
+        <select id="filter-date"><option value="">All dates</option></select>
+      </div>
+      <div>
+        <label>Filter by TA</label>
+        <select id="filter-ta"><option value="">All TAs</option></select>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Date</th><th>Time</th><th>Roll No</th><th>Name</th><th>TA</th><th>Session</th></tr></thead>
+      <tbody id="log-body"><tr><td colspan="6" class="empty">No records yet</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- STUDENTS TAB -->
+<section id="tab-students" style="display:none;">
+  <div class="card">
+    <h2>Subject Roll List</h2>
+    <p class="desc">Loaded from your uploaded spreadsheet — <strong>95 students</strong>.</p>
+    <table>
+      <thead><tr><th>No.</th><th>Roll No</th><th>Name</th><th>Code</th></tr></thead>
+      <tbody id="students-body"></tbody>
+    </table>
+  </div>
+</section>
+
+</main>
 
 <script>
-// Fill this in with your Apps Script Web App /exec URL if it's ever blank.
-const BACKEND_URL="https://script.google.com/a/macros/iitj.ac.in/s/AKfycbyuce-Wtp8WvPISwji41fSlaNkajN9ln-jzz_Q2kdFh8Pv2RopfrLuazwzzc5LEh8_-/exec";
-let scanner=null;
-let running=false;
-let students=[];
-let studentMap={};
-let present={};
-let lastQR='';
-let lastAt=0;
+const ROSTER = [{"no": 1, "roll": "B23EE1041", "name": "Maulik Dave", "code": "OE"}, {"no": 2, "roll": "B23EE1094", "name": "Satvik Garg", "code": "OE"}, {"no": 3, "roll": "B23ES1003", "name": "Adithya Subhash", "code": "OE"}, {"no": 4, "roll": "B23ES1004", "name": "Aditya Jain", "code": "OE"}, {"no": 5, "roll": "B23ES1005", "name": "Advaith Moholkar", "code": "OE"}, {"no": 6, "roll": "B23ES1013", "name": "Debjit Ghorai", "code": "OE"}, {"no": 7, "roll": "B23ES1032", "name": "Sudhanshu Kaustubh Tamhankar", "code": "OE"}, {"no": 8, "roll": "B24ES1022", "name": "Himkesh Tak", "code": "OE"}, {"no": 9, "roll": "B24ES1031", "name": "Shiv Sanjoy Shome", "code": "OE"}, {"no": 10, "roll": "B24EE1037", "name": "Kriti Agarwal", "code": "Audit"}, {"no": 11, "roll": "B24EE1084", "name": "Vanshika Mehta", "code": "Audit"}, {"no": 12, "roll": "B21AI031", "name": "Rohan Kumar Duddeda", "code": "PC"}, {"no": 13, "roll": "B23CM1027", "name": "Nirmal Kumar Godara", "code": "PC"}, {"no": 14, "roll": "B24CM1001", "name": "Aarussh Shrivastava", "code": "PC"}, {"no": 15, "roll": "B24CM1002", "name": "Abhinav Kumar", "code": "PC"}, {"no": 16, "roll": "B24CM1003", "name": "Aditya Gaurav", "code": "PC"}, {"no": 17, "roll": "B24CM1004", "name": "Aditya Ranjan", "code": "PC"}, {"no": 18, "roll": "B24CM1006", "name": "Akshita Maheshwari", "code": "PC"}, {"no": 19, "roll": "B24CM1008", "name": "Amrit Kumar Yadav", "code": "PC"}, {"no": 20, "roll": "B24CM1009", "name": "Anika Sharma", "code": "PC"}, {"no": 21, "roll": "B24CM1010", "name": "Ankur Kumar", "code": "PC"}, {"no": 22, "roll": "B24CM1011", "name": "Ansh Gupta", "code": "PC"}, {"no": 23, "roll": "B24CM1012", "name": "Arnav Agrawal", "code": "PC"}, {"no": 24, "roll": "B24CM1013", "name": "Atharv Sharma", "code": "PC"}, {"no": 25, "roll": "B24CM1014", "name": "Banothu Thomas", "code": "PC"}, {"no": 26, "roll": "B24CM1015", "name": "Chakrawar Rutuja Gajanan", "code": "PC"}, {"no": 27, "roll": "B24CM1016", "name": "Cherry Aggarwal", "code": "PC"}, {"no": 28, "roll": "B24CM1017", "name": "D Jai Kritha", "code": "PC"}, {"no": 29, "roll": "B24CM1018", "name": "Dalwadi Yug Bharat", "code": "PC"}, {"no": 30, "roll": "B24CM1019", "name": "Darsh Choudhary", "code": "PC"}, {"no": 31, "roll": "B24CM1020", "name": "Deepansh Singh", "code": "PC"}, {"no": 32, "roll": "B24CM1021", "name": "Devang Shukla", "code": "PC"}, {"no": 33, "roll": "B24CM1022", "name": "Duggirala Manoj Siva Sri Tharak", "code": "PC"}, {"no": 34, "roll": "B24CM1023", "name": "Fagun", "code": "PC"}, {"no": 35, "roll": "B24CM1024", "name": "Gautam", "code": "PC"}, {"no": 36, "roll": "B24CM1025", "name": "Gokul Bansal", "code": "PC"}, {"no": 37, "roll": "B24CM1026", "name": "Gurtej Singh", "code": "PC"}, {"no": 38, "roll": "B24CM1027", "name": "Harsh Harish Chaudhari", "code": "PC"}, {"no": 39, "roll": "B24CM1028", "name": "Harshita Pareek", "code": "PC"}, {"no": 40, "roll": "B24CM1029", "name": "Hitesh Saini", "code": "PC"}, {"no": 41, "roll": "B24CM1030", "name": "Honey Singh", "code": "PC"}, {"no": 42, "roll": "B24CM1032", "name": "Iftikhar Alam", "code": "PC"}, {"no": 43, "roll": "B24CM1033", "name": "Jayant Soni", "code": "PC"}, {"no": 44, "roll": "B24CM1034", "name": "Jeram Arjun", "code": "PC"}, {"no": 45, "roll": "B24CM1035", "name": "Katravath Kurumurthy", "code": "PC"}, {"no": 46, "roll": "B24CM1037", "name": "Kesanapalli Jithin", "code": "PC"}, {"no": 47, "roll": "B24CM1038", "name": "Khushi Salvi", "code": "PC"}, {"no": 48, "roll": "B24CM1039", "name": "Kole Sanika Vaibhav", "code": "PC"}, {"no": 49, "roll": "B24CM1040", "name": "Kor Raj Mukund", "code": "PC"}, {"no": 50, "roll": "B24CM1041", "name": "Kunal Singh", "code": "PC"}, {"no": 51, "roll": "B24CM1042", "name": "Kushagra Yadav", "code": "PC"}, {"no": 52, "roll": "B24CM1043", "name": "Likhita Halarameshwara", "code": "PC"}, {"no": 53, "roll": "B24CM1044", "name": "Manthan Nayak", "code": "PC"}, {"no": 54, "roll": "B24CM1045", "name": "Mayank Gupta", "code": "PC"}, {"no": 55, "roll": "B24CM1046", "name": "Mudavath Kotesh", "code": "PC"}, {"no": 56, "roll": "B24CM1047", "name": "Nallaiahgari Deadeepya", "code": "PC"}, {"no": 57, "roll": "B24CM1049", "name": "Nimmagadda Princy", "code": "PC"}, {"no": 58, "roll": "B24CM1051", "name": "Randip Randhawa", "code": "PC"}, {"no": 59, "roll": "B24CM1052", "name": "Rupesh", "code": "PC"}, {"no": 60, "roll": "B24CM1054", "name": "Shah Veer Sanjay", "code": "PC"}, {"no": 61, "roll": "B24CM1055", "name": "Shahid Samir Khatib", "code": "PC"}, {"no": 62, "roll": "B24CM1056", "name": "Shreya Sardar", "code": "PC"}, {"no": 63, "roll": "B24CM1057", "name": "Siddarth Modugu", "code": "PC"}, {"no": 64, "roll": "B24CM1058", "name": "Siddhant Gahankari", "code": "PC"}, {"no": 65, "roll": "B24CM1059", "name": "Snehil Gautam", "code": "PC"}, {"no": 66, "roll": "B24CM1060", "name": "Sugam Umale", "code": "PC"}, {"no": 67, "roll": "B24CM1061", "name": "Tanisha Ray", "code": "PC"}, {"no": 68, "roll": "B24CM1062", "name": "Utkarsha", "code": "PC"}, {"no": 69, "roll": "B24CM1064", "name": "Vaniya Ankit Sureshbhai", "code": "PC"}, {"no": 70, "roll": "B24CM1065", "name": "Vansh Rathi", "code": "PC"}, {"no": 71, "roll": "B24CM1066", "name": "Vedansh Manish Buchasia", "code": "PC"}, {"no": 72, "roll": "B24CM1067", "name": "Vichitr Arora", "code": "PC"}, {"no": 73, "roll": "B24CM1068", "name": "Vinamra Gupta", "code": "PC"}, {"no": 74, "roll": "B24CM1069", "name": "Yarrabapu Likhith Kumar Reddy", "code": "PC"}, {"no": 75, "roll": "B24CM1070", "name": "Tushar Verma", "code": "PC"}, {"no": 76, "roll": "B24CM1071", "name": "Gaurang Goyal", "code": "PC"}, {"no": 77, "roll": "B24CM1072", "name": "Soumya Sekhar Parida", "code": "PC"}, {"no": 78, "roll": "B24CM1073", "name": "Chhajed Aditya Mahesh", "code": "PC"}, {"no": 79, "roll": "B24CM1074", "name": "Sai Swaroop Guntuku", "code": "PC"}, {"no": 80, "roll": "B24CM1075", "name": "Khushvendra Singh", "code": "PC"}, {"no": 81, "roll": "B24CM1076", "name": "Sumit Kumar", "code": "PC"}, {"no": 82, "roll": "B24CM1077", "name": "Hrujul Mendhe", "code": "PC"}, {"no": 83, "roll": "B24CM1078", "name": "Deora Harshit Bhanwarlal", "code": "PC"}, {"no": 84, "roll": "B24CM1079", "name": "Sweni Sachin Mehta", "code": "PC"}, {"no": 85, "roll": "B24CM1080", "name": "Jaineel Chetan Vora", "code": "PC"}, {"no": 86, "roll": "B24CM1081", "name": "Radhika", "code": "PC"}, {"no": 87, "roll": "B24CM1082", "name": "Aakarsh Sinha", "code": "PC"}, {"no": 88, "roll": "B24CM1083", "name": "Priyansu Narendra Rajput", "code": "PC"}, {"no": 89, "roll": "B24CM1084", "name": "Gopi Sumanth Chadalavada", "code": "PC"}, {"no": 90, "roll": "B24CM1085", "name": "Bansode Anshum Achyut", "code": "PC"}, {"no": 91, "roll": "B24CM1086", "name": "Yashvi Prashant Jain", "code": "PC"}, {"no": 92, "roll": "B24CM1087", "name": "Ameya Shirish Hardikar", "code": "PC"}, {"no": 93, "roll": "B24CM1088", "name": "Pratyaksh Tyagi", "code": "PC"}, {"no": 94, "roll": "B24CM1089", "name": "Aanchal Bhaskar Shukla", "code": "PC"}, {"no": 95, "roll": "B24CM1090", "name": "Nakshatra Cial", "code": "PC"}];
 
-const $=id=>document.getElementById(id);
-
-function showMessage(text, cls=''){
-  $('msg').textContent=text;
-  $('msg').className=cls;
-}
-
-function updateClock(){
-  const now=new Date();
-  $('date').textContent=now.toLocaleDateString('en-IN',{
-    day:'2-digit',month:'short',year:'numeric'
-  });
-  $('time').textContent=now.toLocaleTimeString('en-IN',{
-    hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
-  });
-}
-updateClock();
-setInterval(updateClock,1000);
-
-function updateStats(){
-  const p=Object.keys(present).length;
-  $('total').textContent=students.length;
-  $('present').textContent=p;
-  $('remaining').textContent=Math.max(0,students.length-p);
-}
-
-function jsonp(params,timeoutMs){
-  timeoutMs=timeoutMs||10000;
-  return new Promise((resolve,reject)=>{
-    if(!BACKEND_URL || BACKEND_URL.includes('PASTE_YOUR')){
-      reject(new Error('Apps Script backend URL is not configured.'));
-      return;
-    }
-
-    const cb='qr_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    const script=document.createElement('script');
-    const timeout=setTimeout(()=>{
-      cleanup();
-      reject(new Error('Backend timeout'));
-    },timeoutMs);
-
-    window[cb]=data=>{
-      cleanup();
-      resolve(data);
-    };
-
-    script.onerror=()=>{
-      cleanup();
-      reject(new Error('Backend unavailable'));
-    };
-
-    script.src=BACKEND_URL+'?'+new URLSearchParams({
-      ...params,callback:cb
-    }).toString();
-
-    document.body.appendChild(script);
-
-    function cleanup(){
-      clearTimeout(timeout);
-      try{delete window[cb]}catch(e){}
-      script.remove();
-    }
-  });
-}
-
-async function loadBackend(){
-  if(BACKEND_URL.includes('PASTE_YOUR')){
-    $('total').textContent='—';
-    showMessage('Camera is ready, but the Apps Script URL is not configured.','err');
-    return;
-  }
-
+/* ---------- storage helpers (persistent, personal) ---------- */
+const LOG_KEY = 'de_attendance_log';
+async function loadLog(){
   try{
-    const d=await jsonp({action:'init'});
-
-    if(!d.ok) throw new Error(d.error||'Backend error');
-
-    students=d.students||[];
-    studentMap={};
-
-    students.forEach(s=>{
-      studentMap[String(s.roll).trim().toUpperCase()]=s;
-    });
-
-    updateStats();
-
-    // Restore this TA/session's already recorded scans if available.
-    await refreshState();
-
-    showMessage('Ready. Enter TA name and start camera.','ok');
-
-  }catch(e){
-    // IMPORTANT: Do not block the camera because Google Sheets is slow/unavailable.
-    showMessage('Camera is ready. Sheet sync is temporarily unavailable.','warn');
-  }
+    const r = await window.storage.get(LOG_KEY, false);
+    return r ? JSON.parse(r.value) : [];
+  }catch(e){ return []; }
+}
+async function saveLog(log){
+  try{ await window.storage.set(LOG_KEY, JSON.stringify(log), false); }
+  catch(e){ console.error('storage save failed', e); }
 }
 
-async function refreshState(){
-  if(!BACKEND_URL || BACKEND_URL.includes('PASTE_YOUR')) return;
+let attendanceLog = [];
+let sessionActive = false;
+let sessionTA = '';
+let sessionLabel = '';
+let sessionScans = []; // {roll,name,time}
+let sessionScannedRolls = new Set();
 
-  const ta=$('ta').value.trim();
-  if(!ta)return;
-
-  try{
-    const d=await jsonp({
-      action:'state',
-      ta:ta,
-      session:$('session').value
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    ['scan','qr','records','students'].forEach(t=>{
+      document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab)?'block':'none';
     });
+    if(btn.dataset.tab==='qr') renderQRCodes();
+    if(btn.dataset.tab==='records') renderRecords();
+    if(btn.dataset.tab==='scan' && sessionActive) startCamera();
+    else stopCamera();
+  });
+});
 
-    if(d.ok){
-      present=d.present||{};
-      updateStats();
-    }
-  }catch(e){}
+document.getElementById('header-count').textContent = ROSTER.length + ' students';
+
+/* ---------- QR generation ---------- */
+function renderQRCodes(){
+  const grid = document.getElementById('qr-grid');
+  if(grid.dataset.done) return;
+  grid.innerHTML = '';
+  ROSTER.forEach(s=>{
+    const card = document.createElement('div');
+    card.className = 'qr-card';
+    const imgDiv = document.createElement('div');
+    imgDiv.className = 'qimg';
+    card.appendChild(imgDiv);
+    const rollEl = document.createElement('div');
+    rollEl.className = 'roll';
+    rollEl.textContent = s.roll;
+    const nameEl = document.createElement('div');
+    nameEl.className = 'name';
+    nameEl.textContent = s.name;
+    card.appendChild(rollEl);
+    card.appendChild(nameEl);
+    grid.appendChild(card);
+    new QRCode(imgDiv, {
+      text: JSON.stringify({roll:s.roll, name:s.name}),
+      width:130, height:130,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  });
+  grid.dataset.done = '1';
 }
 
-$('ta').addEventListener('change',refreshState);
-$('session').addEventListener('change',refreshState);
+/* ---------- students tab ---------- */
+function renderStudents(){
+  const body = document.getElementById('students-body');
+  body.innerHTML = ROSTER.map(s=>`<tr><td>${s.no}</td><td>${s.roll}</td><td>${s.name}</td><td>${s.code}</td></tr>`).join('');
+}
+
+/* ---------- session start/end ---------- */
+document.getElementById('start-session-btn').addEventListener('click', ()=>{
+  const ta = document.getElementById('ta-name-input').value.trim();
+  if(!ta){ alert('Please enter the TA name to begin.'); return; }
+  sessionTA = ta;
+  const lbl = document.getElementById('lecture-label-input').value.trim();
+  const today = new Date();
+  sessionLabel = lbl || today.toLocaleDateString('en-GB');
+  sessionActive = true;
+  sessionScans = [];
+  sessionScannedRolls = new Set();
+  document.getElementById('active-ta-name').textContent = sessionTA;
+  document.getElementById('active-session-label').textContent = sessionLabel;
+  document.getElementById('ta-gate').style.display = 'none';
+  document.getElementById('scan-active').style.display = 'block';
+  renderSessionStats();
+  renderSessionTable();
+  startCamera();
+});
+
+document.getElementById('end-session-btn').addEventListener('click', ()=>{
+  stopCamera();
+  sessionActive = false;
+  document.getElementById('scan-active').style.display = 'none';
+  document.getElementById('ta-gate').style.display = 'block';
+  document.getElementById('ta-name-input').value = '';
+  document.getElementById('lecture-label-input').value = '';
+});
+
+/* ---------- camera + jsQR scanning ---------- */
+let videoStream = null;
+let scanRAF = null;
+const video = document.getElementById('video');
+const canvasEl = document.createElement('canvas');
+const ctx = canvasEl.getContext('2d', {willReadFrequently:true});
+let lastDecoded = '';
+let lastDecodedAt = 0;
 
 async function startCamera(){
-  const ta=$('ta').value.trim();
-
-  if(!ta){
-    alert('Please enter TA name first.');
-    $('ta').focus();
-    return;
-  }
-
-  if(running)return;
-
+  if(videoStream) return;
   try{
-    if(typeof Html5Qrcode==='undefined'){
-      throw new Error('QR scanner library did not load. Check your internet connection and reload the page.');
-    }
-
-    scanner=new Html5Qrcode('reader');
-
-    await scanner.start(
-      {facingMode:'environment'},
-      {
-        fps:4,
-        qrbox:function(w,h){
-          const size=Math.min(
-            Math.floor(w*0.72),
-            Math.floor(h*0.72),
-            300
-          );
-          return {width:size,height:size};
-        },
-        aspectRatio:1.0
-      },
-      onScan,
-      ()=>{}
-    );
-
-    running=true;
-    $('start').style.display='none';
-    $('stop').style.display='block';
-    showMessage('Camera active. Scan QR codes.','ok');
-
+    videoStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = videoStream;
+    await video.play();
+    tick();
   }catch(e){
-    console.error(e);
-
-    if(scanner){
-      try{await scanner.clear()}catch(ignore){}
-      scanner=null;
-    }
-
-    const msg=String(e.message||e);
-
-    if(/NotAllowed|Permission|denied/i.test(msg)){
-      showMessage('Camera permission was denied. Tap START CAMERA again and choose Allow.','err');
-    }else if(/NotFound|DevicesNotFound/i.test(msg)){
-      showMessage('No camera was found on this device.','err');
-    }else if(/NotReadable|TrackStart/i.test(msg)){
-      showMessage('Camera is busy. Close another camera app and try again.','err');
-    }else{
-      showMessage('Camera error: '+msg,'err');
-    }
+    document.getElementById('scan-status').textContent = 'Camera access denied or unavailable: ' + e.message;
   }
 }
-
-async function stopCamera(){
-  if(scanner){
-    try{await scanner.stop()}catch(ignore){}
-    try{scanner.clear()}catch(ignore){}
-    scanner=null;
+function stopCamera(){
+  if(scanRAF) cancelAnimationFrame(scanRAF);
+  scanRAF = null;
+  if(videoStream){
+    videoStream.getTracks().forEach(t=>t.stop());
+    videoStream = null;
   }
-
-  running=false;
-  $('start').style.display='block';
-  $('stop').style.display='none';
-  showMessage('Camera stopped.');
+}
+function tick(){
+  if(video.readyState === video.HAVE_ENOUGH_DATA){
+    canvasEl.width = video.videoWidth;
+    canvasEl.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvasEl.width, canvasEl.height);
+    const imageData = ctx.getImageData(0,0,canvasEl.width, canvasEl.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if(code && code.data){
+      handleDecoded(code.data);
+    }
+  }
+  scanRAF = requestAnimationFrame(tick);
 }
 
-function findStudent(roll){
-  return studentMap[String(roll).trim().toUpperCase()]||null;
-}
+async function handleDecoded(text){
+  const now = Date.now();
+  if(text === lastDecoded && (now - lastDecodedAt) < 2000) return; // debounce same code
+  lastDecoded = text; lastDecodedAt = now;
 
-async function onScan(decodedText){
-  const now=Date.now();
-
-  if(decodedText===lastQR && now-lastAt<1800)return;
-
-  lastQR=decodedText;
-  lastAt=now;
-
-  const roll=String(decodedText).trim().split('|')[0].trim();
-  const student=findStudent(roll);
-
+  let parsed;
+  try{ parsed = JSON.parse(text); }catch(e){ return; }
+  if(!parsed.roll){ return; }
+  const student = ROSTER.find(s=>s.roll === parsed.roll);
   if(!student){
-    $('name').textContent='INVALID QR';
-    $('detail').textContent='This roll number is not in Name List.';
-    showMessage('Invalid student QR.','err');
+    flashStatus('Unrecognized QR code', true);
     return;
   }
 
-  const key=String(student.roll).trim().toUpperCase();
-  const duplicate=!!present[key];
+  const d = new Date();
+  const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const timeStr = d.toLocaleTimeString('en-GB');
 
-  // Immediate local update — no waiting for Google.
-  if(!duplicate) present[key]=true;
+  if(sessionScannedRolls.has(student.roll)){
+    showLastScan(student, timeStr, true);
+    return;
+  }
+  sessionScannedRolls.add(student.roll);
+  const entry = {roll:student.roll, name:student.name, ta:sessionTA, date:dateStr, time:timeStr, session:sessionLabel};
+  sessionScans.unshift(entry);
+  attendanceLog.unshift(entry);
+  await saveLog(attendanceLog);
+  showLastScan(student, timeStr, false);
+  renderSessionStats();
+  renderSessionTable();
+}
 
-  $('name').textContent=student.name;
-  $('detail').textContent=
-    student.roll+' • '+new Date().toLocaleTimeString()+
-    ' • '+(duplicate?'Already present':'✓ Present');
+function showLastScan(student, timeStr, isDup){
+  const box = document.getElementById('last-scan');
+  const info = document.getElementById('last-scan-info');
+  box.classList.toggle('dup', isDup);
+  box.classList.add('show');
+  info.innerHTML = `<span class="badge ${isDup?'a':'p'}">${isDup?'ALREADY MARKED':'PRESENT'}</span> <strong>${student.roll}</strong> &mdash; ${student.name} <span style="color:#5a6472;">(${timeStr})</span>`;
+  flashStatus(isDup ? 'Already recorded this session' : 'Attendance recorded', false);
+}
+function flashStatus(msg){
+  document.getElementById('scan-status').textContent = msg;
+}
 
-  updateStats();
+function renderSessionStats(){
+  document.getElementById('stat-present').textContent = sessionScannedRolls.size;
+  document.getElementById('stat-absent').textContent = ROSTER.length - sessionScannedRolls.size;
+  document.getElementById('stat-total').textContent = ROSTER.length;
+}
+function renderSessionTable(){
+  const body = document.getElementById('session-scan-body');
+  if(sessionScans.length===0){
+    body.innerHTML = '<tr><td colspan="4" class="empty">No scans yet</td></tr>';
+    return;
+  }
+  body.innerHTML = sessionScans.map((s,i)=>
+    `<tr><td>${sessionScans.length-i}</td><td>${s.roll}</td><td>${s.name}</td><td>${s.time}</td></tr>`
+  ).join('');
+}
 
-  showMessage(
-    duplicate
-      ? 'Duplicate scan — attendance unchanged.'
-      : '✓ Present — ready for next student.',
-    duplicate?'':'ok'
+/* ---------- records tab ---------- */
+function populateFilters(){
+  const dateSel = document.getElementById('filter-date');
+  const taSel = document.getElementById('filter-ta');
+  const dates = [...new Set(attendanceLog.map(l=>l.date))].sort().reverse();
+  const tas = [...new Set(attendanceLog.map(l=>l.ta))].sort();
+  dateSel.innerHTML = '<option value="">All dates</option>' + dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+  taSel.innerHTML = '<option value="">All TAs</option>' + tas.map(t=>`<option value="${t}">${t}</option>`).join('');
+}
+function renderRecords(){
+  populateFilters();
+  const dateFilter = document.getElementById('filter-date').value;
+  const taFilter = document.getElementById('filter-ta').value;
+  let rows = attendanceLog;
+  if(dateFilter) rows = rows.filter(r=>r.date===dateFilter);
+  if(taFilter) rows = rows.filter(r=>r.ta===taFilter);
+  const body = document.getElementById('log-body');
+  if(rows.length===0){
+    body.innerHTML = '<tr><td colspan="6" class="empty">No records match</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r=>`<tr><td>${r.date}</td><td>${r.time}</td><td>${r.roll}</td><td>${r.name}</td><td>${r.ta}</td><td>${r.session}</td></tr>`).join('');
+}
+document.getElementById('filter-date').addEventListener('change', renderRecords);
+document.getElementById('filter-ta').addEventListener('change', renderRecords);
+
+document.getElementById('clear-log-btn').addEventListener('click', async ()=>{
+  if(!confirm('This permanently deletes every attendance record stored in this app. Continue?')) return;
+  attendanceLog = [];
+  await saveLog(attendanceLog);
+  renderRecords();
+});
+
+/* ---------- export to xlsx (two sheets) ---------- */
+document.getElementById('export-btn').addEventListener('click', ()=>{
+  if(attendanceLog.length===0){ alert('No records to export yet.'); return; }
+
+  // Sheet 1: raw Attendance Log
+  const logSheetData = [
+    ['Date','Time','Roll No','Name','TA','Session/Lecture']
+  ].concat(
+    [...attendanceLog].reverse().map(r=>[r.date, r.time, r.roll, r.name, r.ta, r.session])
   );
+  const ws1 = XLSX.utils.aoa_to_sheet(logSheetData);
+  ws1['!cols'] = [{wch:12},{wch:11},{wch:14},{wch:28},{wch:20},{wch:16}];
 
-  // Background logging — now checks d.ok so a real backend-side failure
-  // (e.g. permissions) is surfaced instead of silently vanishing.
-  if(!duplicate && BACKEND_URL && !BACKEND_URL.includes('PASTE_YOUR')){
-    jsonp({
-      action:'scan',
-      ta:$('ta').value.trim(),
-      session:$('session').value,
-      roll:student.roll
-    }).then(d=>{
-      if(!d.ok) showMessage('Sync warning: '+(d.error||'scan not saved'),'warn');
-    }).catch(e=>{
-      showMessage('Sync warning: '+e.message,'warn');
+  // Sheet 2: Subject Roll List style master, one column per distinct date scanned
+  const scanDates = [...new Set(attendanceLog.map(l=>l.date))].sort();
+  const header = ['No.','Roll No','Name','Code', ...scanDates];
+  const masterRows = [header];
+  ROSTER.forEach(s=>{
+    const row = [s.no, s.roll, s.name, s.code];
+    scanDates.forEach(d=>{
+      const present = attendanceLog.some(l=>l.roll===s.roll && l.date===d);
+      row.push(present ? 'P' : 'A');
     });
-  }
-}
+    masterRows.push(row);
+  });
+  // attendance % row
+  const pctRow = ['Class Attendance (%)','','','', ...scanDates.map(d=>{
+    const presentCount = ROSTER.filter(s=>attendanceLog.some(l=>l.roll===s.roll && l.date===d)).length;
+    return Math.round((presentCount/ROSTER.length)*10000)/100;
+  })];
+  masterRows.push(pctRow);
+  const ws2 = XLSX.utils.aoa_to_sheet(masterRows);
+  ws2['!cols'] = [{wch:5},{wch:14},{wch:28},{wch:8}, ...scanDates.map(()=>({wch:11}))];
 
-async function finalizeSession(){
-  const rolls=Object.keys(present);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws2, 'Subject Roll List');
+  XLSX.utils.book_append_sheet(wb, ws1, 'Attendance Log');
 
-  if(!rolls.length){
-    alert('No students are marked present on this phone.');
-    return;
-  }
+  const now = new Date();
+  const fname = 'DE_Attendance_Export_' + now.toLocaleDateString('en-CA') + '.xlsx';
+  XLSX.writeFile(wb, fname);
+});
 
-  if(!BACKEND_URL || BACKEND_URL.includes('PASTE_YOUR')){
-    alert('Apps Script backend URL is not configured.');
-    return;
-  }
-
-  if(!confirm(
-    'Finalize today?\n\n' +
-    'Present: '+rolls.length+'\n' +
-    'All other students will be marked A.'
-  ))return;
-
-  try{
-    $('finalize').disabled=true;
-    showMessage('Finalizing attendance… this can take a bit longer than a single scan.');
-
-    // Finalize does much more server-side work (full log read, rowMap
-    // build, P/A writes, formulas) than a single scan_ call, so it gets
-    // a longer timeout than the default 10s used elsewhere.
-    const d=await jsonp({
-      action:'finalize',
-      ta:$('ta').value.trim(),
-      session:$('session').value,
-      present:rolls.join(',')
-    },30000);
-
-    if(!d.ok)throw new Error(d.error||'Finalize failed');
-
-    alert(
-      'Finalized\n\n'+
-      'Present: '+d.present+
-      '\nAbsent: '+d.absent+
-      '\nTotal: '+d.total
-    );
-
-    showMessage(
-      '✓ Attendance updated in Subject Roll List.',
-      'ok'
-    );
-
-  }catch(e){
-    // Apps Script keeps running after the phone gives up waiting, so a
-    // timeout here does NOT necessarily mean the write failed - check
-    // the sheet before assuming nothing happened, and it's always safe
-    // to just tap Finalize again (it overwrites the same date column).
-    alert(
-      'Finalization request timed out or failed: '+e.message+
-      '\n\nThe sheet update may still complete in the background. '+
-      'Check the sheet, and if it looks wrong just tap Finalize again.'
-    );
-    showMessage('Finalize timed out — check the sheet, retry if needed.','warn');
-  }finally{
-    $('finalize').disabled=false;
-  }
-}
-
-loadBackend();
+/* ---------- init ---------- */
+(async function init(){
+  attendanceLog = await loadLog();
+  renderStudents();
+  renderRecords();
+})();
 </script>
 </body>
 </html>
