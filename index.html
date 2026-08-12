@@ -29,7 +29,10 @@ button{border:0;font-weight:bold;background:#38bdf8;color:#062033}
 <h1>QR Attendance</h1>
 
 <div class="card">
-  <input id="ta" placeholder="TA name">
+  <input id="ta" placeholder="TA name" list="taList" autocomplete="off">
+  <datalist id="taList">
+    <option value="Rinku Sadh"></option>
+  </datalist>
   <select id="session">
     <option>Lec</option>
     <option>Lab</option>
@@ -64,6 +67,7 @@ button{border:0;font-weight:bold;background:#38bdf8;color:#062033}
 </div>
 
 <script>
+// Fill this in with your Apps Script Web App /exec URL if it's ever blank.
 const BACKEND_URL="https://script.google.com/a/macros/iitj.ac.in/s/AKfycbyuce-Wtp8WvPISwji41fSlaNkajN9ln-jzz_Q2kdFh8Pv2RopfrLuazwzzc5LEh8_-/exec";
 let scanner=null;
 let running=false;
@@ -310,14 +314,19 @@ async function onScan(decodedText){
     duplicate?'':'ok'
   );
 
-  // Background logging only.
+  // Background logging — now checks d.ok so a real backend-side failure
+  // (e.g. permissions) is surfaced instead of silently vanishing.
   if(!duplicate && BACKEND_URL && !BACKEND_URL.includes('PASTE_YOUR')){
     jsonp({
       action:'scan',
       ta:$('ta').value.trim(),
       session:$('session').value,
       roll:student.roll
-    }).catch(e=>console.warn('Background scan:',e));
+    }).then(d=>{
+      if(!d.ok) showMessage('Sync warning: '+(d.error||'scan not saved'),'warn');
+    }).catch(e=>{
+      showMessage('Sync warning: '+e.message,'warn');
+    });
   }
 }
 
@@ -335,8 +344,8 @@ async function finalizeSession(){
   }
 
   if(!confirm(
-    'Finalize today?\\n\\n' +
-    'Present: '+rolls.length+'\\n' +
+    'Finalize today?\n\n' +
+    'Present: '+rolls.length+'\n' +
     'All other students will be marked A.'
   ))return;
 
@@ -354,10 +363,10 @@ async function finalizeSession(){
     if(!d.ok)throw new Error(d.error||'Finalize failed');
 
     alert(
-      'Finalized\\n\\n'+
+      'Finalized\n\n'+
       'Present: '+d.present+
-      '\\nAbsent: '+d.absent+
-      '\\nTotal: '+d.total
+      '\nAbsent: '+d.absent+
+      '\nTotal: '+d.total
     );
 
     showMessage(
