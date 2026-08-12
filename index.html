@@ -12723,35 +12723,25 @@ function stopCamera(){
     videoStream = null;
   }
 }
-let lastScanTime = 0;
+let lastScanAttempt = 0;
+const SCAN_INTERVAL_MS = 150; // stop running jsQR on every single frame
+const SCAN_MAX_DIM = 480;     // decode a downscaled frame — jsQR speed scales with pixel count
+
 function tick(){
-  const now = Date.now();
-  if(video.readyState === video.HAVE_ENOUGH_DATA){
-    // Throttle QR decoding to once every 200ms to save CPU and prevent interface lag
-    if(now - lastScanTime >= 200) {
-      lastScanTime = now;
-      let width = video.videoWidth;
-      let height = video.videoHeight;
-      const maxDim = 480; // downscale high-resolution frames to 480px max dimension
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-      }
-      canvasEl.width = width;
-      canvasEl.height = height;
-      ctx.drawImage(video, 0, 0, width, height);
-      const imageData = ctx.getImageData(0, 0, width, height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
-      if(code && code.data){
-        const dbg = document.getElementById('debug-line');
-        if(dbg) dbg.textContent = 'Raw decoded text: "' + code.data + '"';
-        handleDecoded(code.data);
-      }
+  const now = performance.now();
+  if(video.readyState === video.HAVE_ENOUGH_DATA && (now - lastScanAttempt) >= SCAN_INTERVAL_MS){
+    lastScanAttempt = now;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const scale = Math.min(1, SCAN_MAX_DIM / Math.max(vw, vh));
+    canvasEl.width = Math.round(vw * scale);
+    canvasEl.height = Math.round(vh * scale);
+    ctx.drawImage(video, 0, 0, canvasEl.width, canvasEl.height);
+    const imageData = ctx.getImageData(0,0,canvasEl.width, canvasEl.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if(code && code.data){
+      const dbg = document.getElementById('debug-line');
+      if(dbg) dbg.textContent = 'Raw decoded text: "' + code.data + '"';
+      handleDecoded(code.data);
     }
   }
   scanRAF = requestAnimationFrame(tick);
@@ -12759,7 +12749,7 @@ function tick(){
 
 async function handleDecoded(text){
   const now = Date.now();
-  if(text === lastDecoded && (now - lastDecodedAt) < 2000) return; // debounce same code
+  if(text === lastDecoded && (now - lastDecodedAt) < 900) return; // debounce same code
   lastDecoded = text; lastDecodedAt = now;
 
   let roll;
