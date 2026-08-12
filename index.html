@@ -12394,6 +12394,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       <div id="last-scan">
         <div class="pill" id="last-scan-info"></div>
       </div>
+      <div id="debug-line" style="text-align:center; font-size:11px; color:#9aa4b2; padding:4px 10px; font-family:monospace; word-break:break-all;"></div>
     </div>
 
     <div class="stat">
@@ -12705,6 +12706,8 @@ function tick(){
     const imageData = ctx.getImageData(0,0,canvasEl.width, canvasEl.height);
     const code = jsQR(imageData.data, imageData.width, imageData.height);
     if(code && code.data){
+      const dbg = document.getElementById('debug-line');
+      if(dbg) dbg.textContent = 'Raw decoded text: "' + code.data + '"';
       handleDecoded(code.data);
     }
   }
