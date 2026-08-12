@@ -137,6 +137,7 @@
   <button class="tab-btn" data-tab="qr">Generate QR Codes</button>
   <button class="tab-btn" data-tab="records">Records</button>
   <button class="tab-btn" data-tab="students">Student List</button>
+  <button class="tab-btn" data-tab="settings">Sync Settings</button>
 </nav>
 
 <main>
@@ -210,9 +211,11 @@
     <h2>Attendance Log</h2>
     <p class="desc">Every scan ever recorded, across all sessions and TAs. This is the raw log — export it to update your master Subject Roll List spreadsheet.</p>
     <div class="top-actions">
-      <button class="primary" id="export-btn">Export to Excel (.xlsx)</button>
+      <button class="primary" id="sync-btn">Sync to Google Sheet</button>
+      <button class="secondary" id="export-btn">Export to Excel (.xlsx)</button>
       <button class="danger" id="clear-log-btn">Clear All Records</button>
     </div>
+    <div id="sync-status-line" style="font-size:12.5px; color:var(--gray); margin-bottom:10px;"></div>
     <div class="row searchbar">
       <div>
         <label>Filter by date</label>
@@ -227,6 +230,37 @@
       <thead><tr><th>Date</th><th>Time</th><th>Roll No</th><th>Name</th><th>TA</th><th>Session</th></tr></thead>
       <tbody id="log-body"><tr><td colspan="6" class="empty">No records yet</td></tr></tbody>
     </table>
+  </div>
+</section>
+
+<!-- SETTINGS TAB -->
+<section id="tab-settings" style="display:none;">
+  <div class="card">
+    <h2>Google Sheet Sync</h2>
+    <p class="desc">
+      This connects the app to your live Google Sheet via a small Apps Script Web App bound to it,
+      so <strong>every TA scanning through this same link writes into the same spreadsheet</strong>.
+      One-time setup (any TA can do it):
+    </p>
+    <ol style="font-size:13px; color:#333; line-height:1.7; padding-left:18px;">
+      <li>Open your sheet: open the Extensions menu &rarr; Apps Script.</li>
+      <li>Delete any placeholder code, paste in the <code>Code.gs</code> file provided alongside this app.</li>
+      <li>Click Deploy &rarr; New deployment &rarr; type "Web app" &rarr; Execute as "Me" &rarr; Who has access "Anyone with the link" &rarr; Deploy.</li>
+      <li>Authorize it when prompted (it's your own script on your own sheet).</li>
+      <li>Copy the <code>/exec</code> URL it gives you and paste it below, then Save.</li>
+    </ol>
+    <div style="margin:14px 0;">
+      <label for="script-url-input">Apps Script Web App URL</label>
+      <input type="text" id="script-url-input" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+    </div>
+    <button class="primary" id="save-url-btn">Save (shared with all TAs)</button>
+    <span id="save-url-status" style="font-size:12.5px; color:var(--green); margin-left:10px;"></span>
+    <p class="desc" style="margin-top:14px;">
+      Once saved, use the <strong>Sync to Google Sheet</strong> button on the Records tab any time to push
+      all not-yet-synced scans straight into your live spreadsheet — it adds a new date column, marks
+      P/A per student, and appends every scan to an "Attendance Log" tab. The local Export button still
+      works too, for an offline backup copy.
+    </p>
   </div>
 </section>
 
@@ -247,16 +281,39 @@
 <script>
 const ROSTER = [{"no": 1, "roll": "B23EE1041", "name": "Maulik Dave", "code": "OE"}, {"no": 2, "roll": "B23EE1094", "name": "Satvik Garg", "code": "OE"}, {"no": 3, "roll": "B23ES1003", "name": "Adithya Subhash", "code": "OE"}, {"no": 4, "roll": "B23ES1004", "name": "Aditya Jain", "code": "OE"}, {"no": 5, "roll": "B23ES1005", "name": "Advaith Moholkar", "code": "OE"}, {"no": 6, "roll": "B23ES1013", "name": "Debjit Ghorai", "code": "OE"}, {"no": 7, "roll": "B23ES1032", "name": "Sudhanshu Kaustubh Tamhankar", "code": "OE"}, {"no": 8, "roll": "B24ES1022", "name": "Himkesh Tak", "code": "OE"}, {"no": 9, "roll": "B24ES1031", "name": "Shiv Sanjoy Shome", "code": "OE"}, {"no": 10, "roll": "B24EE1037", "name": "Kriti Agarwal", "code": "Audit"}, {"no": 11, "roll": "B24EE1084", "name": "Vanshika Mehta", "code": "Audit"}, {"no": 12, "roll": "B21AI031", "name": "Rohan Kumar Duddeda", "code": "PC"}, {"no": 13, "roll": "B23CM1027", "name": "Nirmal Kumar Godara", "code": "PC"}, {"no": 14, "roll": "B24CM1001", "name": "Aarussh Shrivastava", "code": "PC"}, {"no": 15, "roll": "B24CM1002", "name": "Abhinav Kumar", "code": "PC"}, {"no": 16, "roll": "B24CM1003", "name": "Aditya Gaurav", "code": "PC"}, {"no": 17, "roll": "B24CM1004", "name": "Aditya Ranjan", "code": "PC"}, {"no": 18, "roll": "B24CM1006", "name": "Akshita Maheshwari", "code": "PC"}, {"no": 19, "roll": "B24CM1008", "name": "Amrit Kumar Yadav", "code": "PC"}, {"no": 20, "roll": "B24CM1009", "name": "Anika Sharma", "code": "PC"}, {"no": 21, "roll": "B24CM1010", "name": "Ankur Kumar", "code": "PC"}, {"no": 22, "roll": "B24CM1011", "name": "Ansh Gupta", "code": "PC"}, {"no": 23, "roll": "B24CM1012", "name": "Arnav Agrawal", "code": "PC"}, {"no": 24, "roll": "B24CM1013", "name": "Atharv Sharma", "code": "PC"}, {"no": 25, "roll": "B24CM1014", "name": "Banothu Thomas", "code": "PC"}, {"no": 26, "roll": "B24CM1015", "name": "Chakrawar Rutuja Gajanan", "code": "PC"}, {"no": 27, "roll": "B24CM1016", "name": "Cherry Aggarwal", "code": "PC"}, {"no": 28, "roll": "B24CM1017", "name": "D Jai Kritha", "code": "PC"}, {"no": 29, "roll": "B24CM1018", "name": "Dalwadi Yug Bharat", "code": "PC"}, {"no": 30, "roll": "B24CM1019", "name": "Darsh Choudhary", "code": "PC"}, {"no": 31, "roll": "B24CM1020", "name": "Deepansh Singh", "code": "PC"}, {"no": 32, "roll": "B24CM1021", "name": "Devang Shukla", "code": "PC"}, {"no": 33, "roll": "B24CM1022", "name": "Duggirala Manoj Siva Sri Tharak", "code": "PC"}, {"no": 34, "roll": "B24CM1023", "name": "Fagun", "code": "PC"}, {"no": 35, "roll": "B24CM1024", "name": "Gautam", "code": "PC"}, {"no": 36, "roll": "B24CM1025", "name": "Gokul Bansal", "code": "PC"}, {"no": 37, "roll": "B24CM1026", "name": "Gurtej Singh", "code": "PC"}, {"no": 38, "roll": "B24CM1027", "name": "Harsh Harish Chaudhari", "code": "PC"}, {"no": 39, "roll": "B24CM1028", "name": "Harshita Pareek", "code": "PC"}, {"no": 40, "roll": "B24CM1029", "name": "Hitesh Saini", "code": "PC"}, {"no": 41, "roll": "B24CM1030", "name": "Honey Singh", "code": "PC"}, {"no": 42, "roll": "B24CM1032", "name": "Iftikhar Alam", "code": "PC"}, {"no": 43, "roll": "B24CM1033", "name": "Jayant Soni", "code": "PC"}, {"no": 44, "roll": "B24CM1034", "name": "Jeram Arjun", "code": "PC"}, {"no": 45, "roll": "B24CM1035", "name": "Katravath Kurumurthy", "code": "PC"}, {"no": 46, "roll": "B24CM1037", "name": "Kesanapalli Jithin", "code": "PC"}, {"no": 47, "roll": "B24CM1038", "name": "Khushi Salvi", "code": "PC"}, {"no": 48, "roll": "B24CM1039", "name": "Kole Sanika Vaibhav", "code": "PC"}, {"no": 49, "roll": "B24CM1040", "name": "Kor Raj Mukund", "code": "PC"}, {"no": 50, "roll": "B24CM1041", "name": "Kunal Singh", "code": "PC"}, {"no": 51, "roll": "B24CM1042", "name": "Kushagra Yadav", "code": "PC"}, {"no": 52, "roll": "B24CM1043", "name": "Likhita Halarameshwara", "code": "PC"}, {"no": 53, "roll": "B24CM1044", "name": "Manthan Nayak", "code": "PC"}, {"no": 54, "roll": "B24CM1045", "name": "Mayank Gupta", "code": "PC"}, {"no": 55, "roll": "B24CM1046", "name": "Mudavath Kotesh", "code": "PC"}, {"no": 56, "roll": "B24CM1047", "name": "Nallaiahgari Deadeepya", "code": "PC"}, {"no": 57, "roll": "B24CM1049", "name": "Nimmagadda Princy", "code": "PC"}, {"no": 58, "roll": "B24CM1051", "name": "Randip Randhawa", "code": "PC"}, {"no": 59, "roll": "B24CM1052", "name": "Rupesh", "code": "PC"}, {"no": 60, "roll": "B24CM1054", "name": "Shah Veer Sanjay", "code": "PC"}, {"no": 61, "roll": "B24CM1055", "name": "Shahid Samir Khatib", "code": "PC"}, {"no": 62, "roll": "B24CM1056", "name": "Shreya Sardar", "code": "PC"}, {"no": 63, "roll": "B24CM1057", "name": "Siddarth Modugu", "code": "PC"}, {"no": 64, "roll": "B24CM1058", "name": "Siddhant Gahankari", "code": "PC"}, {"no": 65, "roll": "B24CM1059", "name": "Snehil Gautam", "code": "PC"}, {"no": 66, "roll": "B24CM1060", "name": "Sugam Umale", "code": "PC"}, {"no": 67, "roll": "B24CM1061", "name": "Tanisha Ray", "code": "PC"}, {"no": 68, "roll": "B24CM1062", "name": "Utkarsha", "code": "PC"}, {"no": 69, "roll": "B24CM1064", "name": "Vaniya Ankit Sureshbhai", "code": "PC"}, {"no": 70, "roll": "B24CM1065", "name": "Vansh Rathi", "code": "PC"}, {"no": 71, "roll": "B24CM1066", "name": "Vedansh Manish Buchasia", "code": "PC"}, {"no": 72, "roll": "B24CM1067", "name": "Vichitr Arora", "code": "PC"}, {"no": 73, "roll": "B24CM1068", "name": "Vinamra Gupta", "code": "PC"}, {"no": 74, "roll": "B24CM1069", "name": "Yarrabapu Likhith Kumar Reddy", "code": "PC"}, {"no": 75, "roll": "B24CM1070", "name": "Tushar Verma", "code": "PC"}, {"no": 76, "roll": "B24CM1071", "name": "Gaurang Goyal", "code": "PC"}, {"no": 77, "roll": "B24CM1072", "name": "Soumya Sekhar Parida", "code": "PC"}, {"no": 78, "roll": "B24CM1073", "name": "Chhajed Aditya Mahesh", "code": "PC"}, {"no": 79, "roll": "B24CM1074", "name": "Sai Swaroop Guntuku", "code": "PC"}, {"no": 80, "roll": "B24CM1075", "name": "Khushvendra Singh", "code": "PC"}, {"no": 81, "roll": "B24CM1076", "name": "Sumit Kumar", "code": "PC"}, {"no": 82, "roll": "B24CM1077", "name": "Hrujul Mendhe", "code": "PC"}, {"no": 83, "roll": "B24CM1078", "name": "Deora Harshit Bhanwarlal", "code": "PC"}, {"no": 84, "roll": "B24CM1079", "name": "Sweni Sachin Mehta", "code": "PC"}, {"no": 85, "roll": "B24CM1080", "name": "Jaineel Chetan Vora", "code": "PC"}, {"no": 86, "roll": "B24CM1081", "name": "Radhika", "code": "PC"}, {"no": 87, "roll": "B24CM1082", "name": "Aakarsh Sinha", "code": "PC"}, {"no": 88, "roll": "B24CM1083", "name": "Priyansu Narendra Rajput", "code": "PC"}, {"no": 89, "roll": "B24CM1084", "name": "Gopi Sumanth Chadalavada", "code": "PC"}, {"no": 90, "roll": "B24CM1085", "name": "Bansode Anshum Achyut", "code": "PC"}, {"no": 91, "roll": "B24CM1086", "name": "Yashvi Prashant Jain", "code": "PC"}, {"no": 92, "roll": "B24CM1087", "name": "Ameya Shirish Hardikar", "code": "PC"}, {"no": 93, "roll": "B24CM1088", "name": "Pratyaksh Tyagi", "code": "PC"}, {"no": 94, "roll": "B24CM1089", "name": "Aanchal Bhaskar Shukla", "code": "PC"}, {"no": 95, "roll": "B24CM1090", "name": "Nakshatra Cial", "code": "PC"}];
 
-/* ---------- storage helpers (persistent, personal) ---------- */
+/* ---------- storage helpers ----------
+   Attendance log + the Google Sheet sync URL are stored SHARED (visible to
+   every TA who opens this same app), so everyone works off one dataset. */
 const LOG_KEY = 'de_attendance_log';
+const SCRIPT_URL_KEY = 'de_attendance_script_url';
+
 async function loadLog(){
   try{
-    const r = await window.storage.get(LOG_KEY, false);
+    const r = await window.storage.get(LOG_KEY, true);
     return r ? JSON.parse(r.value) : [];
   }catch(e){ return []; }
 }
 async function saveLog(log){
-  try{ await window.storage.set(LOG_KEY, JSON.stringify(log), false); }
+  try{ await window.storage.set(LOG_KEY, JSON.stringify(log), true); }
+  catch(e){ console.error('storage save failed', e); }
+}
+// re-fetch the shared log, append a new entry, save — reduces (not fully
+// eliminates) overwrite races when two TAs scan at the same moment.
+async function appendToSharedLog(entry){
+  const fresh = await loadLog();
+  fresh.unshift(entry);
+  await saveLog(fresh);
+  return fresh;
+}
+
+async function loadScriptUrl(){
+  try{
+    const r = await window.storage.get(SCRIPT_URL_KEY, true);
+    return r ? r.value : '';
+  }catch(e){ return ''; }
+}
+async function saveScriptUrl(url){
+  try{ await window.storage.set(SCRIPT_URL_KEY, url, true); }
   catch(e){ console.error('storage save failed', e); }
 }
 
@@ -272,11 +329,12 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['scan','qr','records','students'].forEach(t=>{
+    ['scan','qr','records','students','settings'].forEach(t=>{
       document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab)?'block':'none';
     });
     if(btn.dataset.tab==='qr') renderQRCodes();
     if(btn.dataset.tab==='records') renderRecords();
+    if(btn.dataset.tab==='settings') loadScriptUrlIntoField();
     if(btn.dataset.tab==='scan' && sessionActive) startCamera();
     else stopCamera();
   });
@@ -408,15 +466,17 @@ async function handleDecoded(text){
   const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
   const timeStr = d.toLocaleTimeString('en-GB');
 
-  if(sessionScannedRolls.has(student.roll)){
+  const alreadyToday = sessionScannedRolls.has(student.roll) ||
+    attendanceLog.some(l=>l.roll===student.roll && l.date===dateStr && l.session===sessionLabel);
+  if(alreadyToday){
+    sessionScannedRolls.add(student.roll);
     showLastScan(student, timeStr, true);
     return;
   }
   sessionScannedRolls.add(student.roll);
-  const entry = {roll:student.roll, name:student.name, ta:sessionTA, date:dateStr, time:timeStr, session:sessionLabel};
+  const entry = {roll:student.roll, name:student.name, ta:sessionTA, date:dateStr, time:timeStr, session:sessionLabel, synced:false};
   sessionScans.unshift(entry);
-  attendanceLog.unshift(entry);
-  await saveLog(attendanceLog);
+  attendanceLog = await appendToSharedLog(entry);
   showLastScan(student, timeStr, false);
   renderSessionStats();
   renderSessionTable();
@@ -524,6 +584,50 @@ document.getElementById('export-btn').addEventListener('click', ()=>{
   const now = new Date();
   const fname = 'DE_Attendance_Export_' + now.toLocaleDateString('en-CA') + '.xlsx';
   XLSX.writeFile(wb, fname);
+});
+
+/* ---------- settings tab: Google Sheet sync ---------- */
+async function loadScriptUrlIntoField(){
+  const url = await loadScriptUrl();
+  document.getElementById('script-url-input').value = url;
+}
+document.getElementById('save-url-btn').addEventListener('click', async ()=>{
+  const url = document.getElementById('script-url-input').value.trim();
+  await saveScriptUrl(url);
+  const st = document.getElementById('save-url-status');
+  st.textContent = 'Saved ✓ (all TAs using this app will now sync here)';
+  setTimeout(()=>{ st.textContent=''; }, 4000);
+});
+
+document.getElementById('sync-btn').addEventListener('click', async ()=>{
+  const line = document.getElementById('sync-status-line');
+  const url = await loadScriptUrl();
+  if(!url){
+    line.textContent = 'No Google Sheet connected yet — set it up under "Sync Settings".';
+    return;
+  }
+  const unsynced = attendanceLog.filter(r=>!r.synced);
+  if(unsynced.length===0){
+    line.textContent = 'Everything is already synced.';
+    return;
+  }
+  line.textContent = `Syncing ${unsynced.length} record(s) to Google Sheets...`;
+  try{
+    // Apps Script web apps don't send CORS headers for JSON; text/plain avoids
+    // the preflight and Apps Script still reads it fine via e.postData.contents.
+    await fetch(url, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({records: unsynced})
+    });
+    attendanceLog.forEach(r=>{ if(!r.synced) r.synced = true; });
+    await saveLog(attendanceLog);
+    line.textContent = `Synced ${unsynced.length} record(s) to your Google Sheet.`;
+    renderRecords();
+  }catch(e){
+    line.textContent = 'Sync failed: ' + e.message;
+  }
 });
 
 /* ---------- init ---------- */
