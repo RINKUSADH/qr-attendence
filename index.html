@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DE Attendance System</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -306,11 +306,13 @@ async function appendToSharedLog(entry){
   return fresh;
 }
 
+const HARDCODED_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw14Hw2k0NSJNTKhkALd_G0mWEGERNRsshRzJoKOlbKe-tbEnq7tbMCzbhToH9RtQ/exec';
+
 async function loadScriptUrl(){
   try{
     const r = await window.storage.get(SCRIPT_URL_KEY, true);
-    return r ? r.value : '';
-  }catch(e){ return ''; }
+    return (r && r.value) ? r.value : HARDCODED_SCRIPT_URL;
+  }catch(e){ return HARDCODED_SCRIPT_URL; }
 }
 async function saveScriptUrl(url){
   try{ await window.storage.set(SCRIPT_URL_KEY, url, true); }
@@ -417,6 +419,10 @@ let lastDecodedAt = 0;
 
 async function startCamera(){
   if(videoStream) return;
+  if(typeof jsQR === 'undefined'){
+    document.getElementById('scan-status').textContent = 'QR scanning library failed to load — check your internet connection and reload the page.';
+    return;
+  }
   try{
     videoStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
     video.srcObject = videoStream;
