@@ -13009,7 +13009,12 @@
             renderRecords();
           }
         } else if (ev.data.type === 'fullLog') {
-          attendanceLog = ev.data.log;
+          // MERGE incoming log with local log (dedupe by roll+date+session+ta)
+          const incoming = ev.data.log;
+          incoming.forEach(entry => {
+            const exists = attendanceLog.some(l => l.roll === entry.roll && l.date === entry.date && l.session === entry.session && l.ta === entry.ta);
+            if (!exists) attendanceLog.unshift(entry);
+          });
           renderSessionStats();
           renderSessionTable();
           renderRecords();
